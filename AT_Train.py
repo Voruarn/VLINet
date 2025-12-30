@@ -13,7 +13,6 @@ from torch.utils.tensorboard import SummaryWriter
 from setting.loss_function2 import SaliencyLoss
 
 
-# 固定随机数种子
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
@@ -26,7 +25,6 @@ def set_seed(seed=42):
 set_seed(42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# 命令行参数解析
 parser = argparse.ArgumentParser()
 parser.add_argument("--trainset_path", type=str, 
         default="/fuyuxiang/Projects/CLS/Datasets/RGB-DSOD11/RGB-DSOD/RGBD_Train/")
@@ -56,7 +54,7 @@ def validate(opts, model, text_encoder, loader, device, metrics):
     metrics.reset()
     with torch.no_grad():
         for step, (images, depths, texts, labels) in tqdm(enumerate(loader)):
-            # 数据设备迁移（texts是list[str]，无需转CUDA）
+  
             images = images.to(device, dtype=torch.float32)
             depths = depths.to(device, dtype=torch.float32)
             labels = labels.to(device, dtype=torch.float32)
@@ -72,8 +70,6 @@ def validate(opts, model, text_encoder, loader, device, metrics):
 
         score = metrics.get_results()
     return score
-
-
 
 if __name__=='__main__':
     if not os.path.exists(opt.save_path):
@@ -100,12 +96,11 @@ if __name__=='__main__':
     metrics = SODMetrics(cuda=True)
     criterion = SaliencyLoss()
 
-
     train_loader, train_num = get_loader(
         opt.trainset_path+'train_images/',
         opt.trainset_path+'train_depth/', 
         opt.trainset_path+'train_masks/', 
-        opt.trainset_path+'train_text_oct/',  # 文本路径（输出list[str]）
+        opt.trainset_path+'train_text_oct/',  
         batchsize=opt.batchsize,
         trainsize=opt.trainsize,
         num_workers=opt.n_cpu
@@ -121,9 +116,8 @@ if __name__=='__main__':
     )
     print(f"[Data] Loaded {train_num} train images, {val_num} val images")
     
-
     print("Start training...")
-    cur_epoch = 40
+    cur_epoch = 0
     best_MAE = 1.0
     for epoch in range(cur_epoch, opt.epoch):
         # 调整学习率
@@ -169,7 +163,7 @@ if __name__=='__main__':
 
         if (epoch+1) % opt.save_ep == 0:
             torch.save(model.state_dict(), opt.save_path + f'last_{opt.model}_{opt.dataset}.pth')
-            if (epoch+1)>=70 and (epoch+1) % 30 == 0:
+            if (epoch+1)>=30 and (epoch+1) % 15 == 0:
                 torch.save(model.state_dict(), opt.save_path + f'{opt.model}_{opt.dataset}_{epoch+1}e.pth')
             print(f"Model Saved at {opt.save_path}")
 
