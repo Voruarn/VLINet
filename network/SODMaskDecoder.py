@@ -185,14 +185,13 @@ class SODMaskDecoder(nn.Module):
 
     def forward(
         self,
-        visual_feat: torch.Tensor,          # VDLNet的fused_rgb_c1: (B, 256, H/4, W/4)
-        dense_prompt_feat: torch.Tensor,    # VDLNet的fused_depth_c1: (B, 256, H/4, W/4)
-        text_feat: torch.Tensor,            # VDLNet的texts: (B, text_dim=512) 或 (B, T, 512)
-        orig_size: Tuple[int, int]          # VDLNet的原始图像尺寸: (H_orig, W_orig)
+        visual_feat: torch.Tensor,          # fused_rgb_c1: (B, 256, H/4, W/4)
+        dense_prompt_feat: torch.Tensor,    # fused_depth_c1: (B, 256, H/4, W/4)
+        text_feat: torch.Tensor,            # texts: (B, text_dim=512) 或 (B, T, 512)
+        orig_size: Tuple[int, int]          # 原始图像尺寸: (H_orig, W_orig)
     ) -> torch.Tensor:
         B, C, H_feat, W_feat = visual_feat.shape
         self.orig_size = orig_size
-
 
         # 1.1 RGB视觉特征展平: (B, C, H, W) → (B, H*W, C)
         visual_flat = visual_feat.permute(0, 2, 3, 1).reshape(B, H_feat*W_feat, C)
@@ -255,3 +254,4 @@ class SODMaskDecoder(nn.Module):
         )  # (B, 1, H_orig, W_orig)
 
         return pred
+
