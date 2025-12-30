@@ -116,12 +116,11 @@ class TwoWayAttentionBlock(nn.Module):
 
 
 class SODMaskDecoder(nn.Module):
-    """适配VDLNet的SAM Mask Decoder（RGB-D显著目标检测）"""
     def __init__(
         self,
         *,
-        text_embed_dim: int = 512,       # VDLNet的text_dim
-        transformer_dim: int = 256,      # 与dec_dim一致
+        text_embed_dim: int = 512,       
+        transformer_dim: int = 256,      
         num_heads: int = 8,
         num_multimask_outputs: int = 0,  # 显著目标检测仅需单掩码
         activation: nn.Module = nn.GELU,
@@ -131,13 +130,10 @@ class SODMaskDecoder(nn.Module):
         self.num_multimask_outputs = num_multimask_outputs
         self.orig_size = None  # 原始图像尺寸
 
-        # 2. 文本特征投影（VDLNet的text_feat维度512→256）
         self.text_proj = nn.Linear(text_embed_dim, transformer_dim)
         
-        # 3. 掩码Token（显著目标检测仅需1个掩码Token）
         self.mask_tokens = nn.Embedding(1 + num_multimask_outputs, transformer_dim)
         
-        # 4. 输出上采样（基础4倍上采样）
         self.output_upscaling = nn.Sequential(
             nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
             LayerNorm2d(transformer_dim // 4),
@@ -146,13 +142,11 @@ class SODMaskDecoder(nn.Module):
             activation(),
         )
         
-        # 5. 掩码预测头
         self.output_hypernetworks_mlps = nn.ModuleList([
             MLP(transformer_dim, transformer_dim, transformer_dim // 8, 3)
             for _ in range(1 + num_multimask_outputs)
         ])
 
-        # 7. 双向注意力Transformer
         self.transformer = nn.ModuleList([
             TwoWayAttentionBlock(
                 embedding_dim=transformer_dim,
@@ -196,22 +190,10 @@ class SODMaskDecoder(nn.Module):
         text_feat: torch.Tensor,            # VDLNet的texts: (B, text_dim=512) 或 (B, T, 512)
         orig_size: Tuple[int, int]          # VDLNet的原始图像尺寸: (H_orig, W_orig)
     ) -> torch.Tensor:
-        """
-        适配VDLNet的forward函数
-        Args:
-            visual_feat: RGB多尺度融合特征 (B, 256, H/4, W/4)
-            dense_prompt_feat: 深度稠密提示特征 (B, 256, H/4, W/4)
-            text_feat: 文本特征 (B, 512) 或 (B, T, 512)
-            orig_size: 原始图像尺寸 (H_orig, W_orig)
-        Returns:
-            pred: 显著目标检测掩码 (B, 1, H_orig, W_orig)
-        """
         B, C, H_feat, W_feat = visual_feat.shape
         self.orig_size = orig_size
 
-        # --------------------------
-        # 1. 特征预处理（适配VDLNet输入）
-        # --------------------------
+
         # 1.1 RGB视觉特征展平: (B, C, H, W) → (B, H*W, C)
         visual_flat = visual_feat.permute(0, 2, 3, 1).reshape(B, H_feat*W_feat, C)
         dense_flat = dense_prompt_feat.permute(0, 2, 3, 1).reshape(B, H_feat*W_feat, C)
@@ -265,9 +247,6 @@ class SODMaskDecoder(nn.Module):
         mask_features = mask_features[:, :, None, None]     # (B, 32, 1, 1)
         mask = (mask_features * upscaled_embedding).sum(dim=1, keepdim=True)  # (B, 1, 4H_feat, 4W_feat)
 
-        # --------------------------
-        # 6. 上采样到原始图像尺寸（适配VDLNet）
-        # --------------------------
         pred = F.interpolate(
             mask, 
             size=orig_size, 
@@ -276,5 +255,3 @@ class SODMaskDecoder(nn.Module):
         )  # (B, 1, H_orig, W_orig)
 
         return pred
-
-
