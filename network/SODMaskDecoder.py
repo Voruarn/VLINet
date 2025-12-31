@@ -3,11 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple, List, Union
 
-# 设备自动检测
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class LayerNorm2d(nn.Module):
-    """2D LayerNorm（SAM原生实现）"""
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
         super().__init__()
         self.weight = nn.Parameter(torch.ones(num_channels))
@@ -22,7 +20,6 @@ class LayerNorm2d(nn.Module):
         return x
     
 class MLP(nn.Module):
-    """轻量级MLP模块（SAM原始实现）"""
     def __init__(
         self,
         input_dim: int,
