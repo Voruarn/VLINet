@@ -26,25 +26,20 @@ class Mlp(nn.Module):
         x = self.fc2(x)
         x = self.drop(x)
         return x
-        
 
 class VisionLanguageInteraction(nn.Module):
 
     def __init__(self, visual_dim, text_dim, dropout=0.1, num_heads=4):
         super().__init__()
 
-        # 1. 文本特征维度投影层（将text_dim映射到visual_dim，实现跨模态维度对齐）
         self.text_proj = nn.Linear(text_dim, visual_dim)
         
-        # 2. 双向交叉注意力组件（batch_first=True：输入格式为(B, seq_len, dim)）
         self.attn_vis = nn.MultiheadAttention(visual_dim, num_heads=num_heads, batch_first=True)
         self.attn_lang = nn.MultiheadAttention(visual_dim, num_heads=num_heads, batch_first=True)
 
-        # 3. 各模态独立的前馈网络（MLP，隐藏层维度为4倍视觉维度，传递dropout参数）
         self.ffn_vis = Mlp(visual_dim, hidden_features=visual_dim * 4, drop=dropout)
         self.ffn_lang = Mlp(visual_dim, hidden_features=visual_dim * 4, drop=dropout)
         
-        # 4. 模块参数初始化
         self._init_weights()
     
     def _init_weights(self):
@@ -78,50 +73,6 @@ class VisionLanguageInteraction(nn.Module):
 
         return out_vis, out_lang
 
-class LanguagePrompter(nn.Module):
-
-    def __init__(self, visual_dim, text_dim1, text_dim2, dropout=0.1, num_heads=4):
-        super().__init__()
- 
-        # 1. 文本特征维度投影层（将text_dim映射到visual_dim，实现跨模态维度对齐）
-        self.text_proj1 = nn.Linear(text_dim1, visual_dim)
-        self.text_proj2 = nn.Linear(text_dim2, visual_dim)
-        
-        # 2. 双向交叉注意力组件（batch_first=True：输入格式为(B, seq_len, dim)）
-        self.attn_self = nn.MultiheadAttention(visual_dim, num_heads=num_heads, batch_first=True)
-        self.attn_vis = nn.MultiheadAttention(visual_dim, num_heads=num_heads, batch_first=True)
-        self.attn_lang = nn.MultiheadAttention(visual_dim, num_heads=num_heads, batch_first=True)
-
-        self.ffn = Mlp(visual_dim, hidden_features=visual_dim * 4, drop=dropout)
-        
-        self._init_weights()
-    
-    def _init_weights(self):
-        """ Custom weight initialization for linear layers. """
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                # Kaiming正态初始化（针对ReLU/GELU等非线性激活）
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                # Bias参数初始化为0
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
-    def forward(self, visual_feat, text_cur, text_raw):
-        B, C, H, W = visual_feat.shape
-        # 视觉特征：(B, C, H, W) → (B, H, W, C) → (B, H*W, C)（展平空间维度为序列长度）
-        visual_feat_perm = visual_feat.permute(0, 2, 3, 1)  # 交换通道维度与空间维度
-        visual_feat_flat = visual_feat_perm.reshape(B, H * W, C)  # 展平为序列格式
-
-        # 文本特征：(B, text_dim) → (B, visual_dim) → (B, 1, visual_dim)（扩展为序列长度1）
-        text_cur = self.text_proj1(text_cur)  # 维度对齐
-        text_raw = self.text_proj2(text_raw)  # 维度对齐
-
-        out1, _ = self.attn_self(text_cur, text_cur, text_cur)
-        out2, _ = self.attn_vis(out1, visual_feat_flat, visual_feat_flat)
-        out3, _ = self.attn_lang(out2, text_raw, text_raw)
-        out4 = self.ffn(out3) 
-
-        return out4
 
 class Block(nn.Module):
     r""" ConvNeXt Block. There are two equivalent implementations:
